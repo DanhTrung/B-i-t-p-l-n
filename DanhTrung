@@ -1,0 +1,216 @@
+#include <iostream>
+#include <vector>
+#include <string>
+#include <ctime>
+#include <sstream>
+#include <iomanip>
+
+using namespace std;
+
+// Định nghĩa struct Vehicle để lưu thông tin xe
+struct Vehicle {
+    string plate;   // Biển số xe
+    string inTime;  // Thời gian vào bãi
+    bool isMotorcycle; // Xe máy hay xe đạp
+};
+
+vector<Vehicle> parkingLot;  // Danh sách xe trong bãi
+vector<string> logs;         // Nhật ký ra vào của xe
+
+// Hàm trợ giúp để chuyển đổi chuỗi thời gian sang time_t
+time_t convertToTimeT(const string& timeStr) {
+    struct tm tm = {};
+    istringstream ss(timeStr);
+    ss >> get_time(&tm, "%H:%M:%S");
+    if (ss.fail()) {
+        cerr << "Error parsing time string: " << timeStr << endl;
+        return -1;
+    }
+    return mktime(&tm);
+}
+
+// Hàm trợ giúp để tính phí đỗ xe
+int calculateFee(const string& inTime, const string& outTime, bool isMotorcycle) {
+    time_t inTimeT = convertToTimeT(inTime);
+    time_t outTimeT = convertToTimeT(outTime);
+    if (inTimeT == -1 || outTimeT == -1) {
+        return -1; // Return an error code if time parsing failed
+    }
+
+    struct tm* inTm = localtime(&inTimeT);
+    struct tm* outTm = localtime(&outTimeT);
+    
+    int fee = 0;
+    bool inDay = inTm->tm_hour >= 6 && inTm->tm_hour < 18;
+    bool outDay = outTm->tm_hour >= 6 && outTm->tm_hour < 18;
+
+    if (isMotorcycle) {
+        if (inDay && outDay) {
+            fee = 3000;
+        } else if (!inDay && !outDay) {
+            fee = 5000;
+        } else if (!inDay && outDay) {
+            fee = 8000;
+        } else {
+            fee = 13000;
+        }
+    } else { // Bicycle
+        if (inDay && outDay) {
+            fee = 1000;
+        } else if (!inDay && !outDay) {
+            fee = 2000;
+        } else if (!inDay && outDay) {
+            fee = 3000;
+        } else {
+            fee = 5000;
+        }
+    }
+
+    return fee;
+}
+
+// Hàm liệt kê tất cả các xe trong bãi
+void listVehicles() {
+    for (const auto& vehicle : parkingLot) {
+        cout << vehicle.plate << endl;
+    }
+}
+
+// Hàm tìm kiếm một xe trong bãi
+void findVehicle(const string& plate) {
+    for (size_t i = 0; i < parkingLot.size(); ++i) {
+        if (parkingLot[i].plate == plate) {
+            cout << i << endl;
+            return;
+        }
+    }
+    cout << "-1" << endl;
+}
+
+// Hàm đưa một xe vào bãi
+void parkVehicle(const string& time, const string& plate) {
+    for (const auto& vehicle : parkingLot) {
+        if (vehicle.plate == plate) {
+            cout << "0" << endl;
+            return;
+        }
+    }
+    bool isMotorcycle = plate.find("xxxx") == string::npos;
+    parkingLot.push_back({plate, time, isMotorcycle});
+    logs.push_back("in " + time + " " + plate);
+    cout << "1" << endl;
+}
+
+// Hàm đưa một xe ra khỏi bãi
+void removeVehicle(const string& time, const string& plate) {
+    for (auto it = parkingLot.begin(); it != parkingLot.end(); ++it) {
+        if (it->plate == plate) {
+            int fee = calculateFee(it->inTime, time, it->isMotorcycle);
+            logs.push_back("out " + time + " " + plate + " " + to_string(fee));
+            parkingLot.erase(it);
+            cout << "1" << endl;
+            return;
+        }
+    }
+    cout << "0" << endl;
+}
+
+// Hàm đếm số xe máy trong bãi
+void countMotorcycles() {
+    int count = 0;
+    for (const auto& vehicle : parkingLot) {
+        if (vehicle.isMotorcycle) {
+            count++;
+        }
+    }
+    cout << count << endl;
+}
+
+// Hàm tính phí đỗ xe cho một xe cụ thể
+void calculateBill(const string& time, const string& plate) {
+    for (const auto& vehicle : parkingLot) {
+        if (vehicle.plate == plate) {
+            int fee = calculateFee(vehicle.inTime, time, vehicle.isMotorcycle);
+            cout << fee << endl;
+            return;
+        }
+    }
+    cout << "-1" << endl;
+}
+
+// Hàm tính tổng phí đỗ xe đã thu được
+void calculateTotalBill() {
+    int totalFee = 0;
+    for (const string& log : logs) {
+        istringstream ss(log);
+        string action, time, plate;
+        int fee;
+        ss >> action >> time >> plate >> fee;
+        if (action == "out") {
+            totalFee += fee;
+        }
+    }
+    cout << totalFee << endl;
+}
+
+// Hàm tách chuỗi theo dấu cách và lưu vào vector
+vector<string> split(const string &s) {
+    vector<string> tokens;
+    size_t start = 0, end = 0;
+    while ((end = s.find(' ', start)) != string::npos) {
+        tokens.push_back(s.substr(start, end - start));
+        start = end + 1;
+    }
+    tokens.push_back(s.substr(start));
+    return tokens;
+}
+
+int main() {
+    string line;
+    vector<string> inputs;
+    // Đọc thông tin ban đầu về các xe trong bãi
+    while (getline(cin, line)) {
+        if (line == "*") break;
+        inputs.push_back(line);
+    }
+
+    // Khởi tạo trạng thái bãi đỗ ban đầu
+    for (const string& input : inputs) {
+        vector<string> tokens = split(input);
+        string time = tokens[0];
+        string plate = tokens[1];
+        bool isMotorcycle = plate.find("xxxx") == string::npos;
+        parkingLot.push_back({plate, time, isMotorcycle});
+    }
+
+    // Xử lý các lệnh
+    while (getline(cin, line)) {
+        if (line == "*") break;
+        vector<string> tokens = split(line);
+        string command = tokens[0];
+        if (command == "list") {
+            listVehicles();
+        } else if (command == "find") {
+            string plate = tokens[1];
+            findVehicle(plate);
+        } else if (command == "in") {
+            string time = tokens[1];
+            string plate = tokens[2];
+            parkVehicle(time, plate);
+        } else if (command == "out") {
+            string time = tokens[1];
+            string plate = tokens[2];
+            removeVehicle(time, plate);
+        } else if (command == "cnt-moto") {
+            countMotorcycles();
+        } else if (command == "bill") {
+            string time = tokens[1];
+            string plate = tokens[2];
+            calculateBill(time, plate);
+        } else if (command == "billall") {
+            calculateTotalBill();
+        }
+    }
+
+    return 0;
+}
